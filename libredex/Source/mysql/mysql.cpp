@@ -19,7 +19,7 @@
 #include <exception>
 #include <stdexcept>
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/foreach.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/algorithm/string.hpp>
@@ -31,6 +31,8 @@
 #include "mysql/datacache/charactermysql.hpp"
 #include "mysql/datacache/objectmysql.hpp"
 #include "mysql/migration/includeAllSchemas.hpp"
+
+using namespace boost::placeholders;
 
 #ifdef DEBUG
 #include "logger.hpp"

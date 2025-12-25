@@ -15,7 +15,7 @@
  * GNU Affero General Public License for more details.
  */
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include "rest/http_server.hpp"
 #include "rest/restserver.hpp"
 
@@ -24,6 +24,8 @@
 #include "logger.hpp"
 extern Logger logfile;
 #endif
+
+using namespace boost::placeholders;
 
 restserver::restserver(EXT_FUNCTIONS &extFunctions) {
 	extFunctions.insert(

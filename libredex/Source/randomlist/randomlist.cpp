@@ -19,7 +19,7 @@
 #include "randomlist/randomlist.hpp"
 
 #include <unistd.h>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/foreach.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -29,6 +29,8 @@
 #include <exception>
 #include <stdexcept>
 #include <fstream>
+
+using namespace boost::placeholders;
 
 
 randomlist::randomlist(EXT_FUNCTIONS &extFunctions) {

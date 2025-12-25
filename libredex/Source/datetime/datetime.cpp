@@ -16,7 +16,7 @@
  */
 
 #include <unistd.h>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/foreach.hpp>
 #include <cassert>
 #include <exception>
@@ -25,6 +25,8 @@
 #include <ctime>
 
 #include "datetime/datetime.hpp"
+
+using namespace boost::placeholders;
 
 datetime::datetime(EXT_FUNCTIONS &extFunctions) {
 	extFunctions.insert(

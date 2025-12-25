@@ -20,12 +20,14 @@
 
 #include <string>
 #include <map>
+#include <memory>
 #include <vector>
 #include <queue>
 #include <mutex>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/function.hpp>
 #include <boost/asio.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/lockfree/queue.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
@@ -48,8 +50,8 @@ public:
 private:
 	EXT_FUNCTIONS extFunctions;
 
-	boost::asio::io_service REDEXioService;
-	boost::shared_ptr<boost::asio::io_service::work> REDEXioServiceWork;
+	boost::asio::io_context REDEXioService;
+	std::shared_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> REDEXioServiceWork;
 	boost::thread_group asyncthreadpool;
 
 	typedef std::vector<std::unique_ptr<ext_base>> extModulesType;

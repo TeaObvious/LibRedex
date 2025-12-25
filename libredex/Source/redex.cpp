@@ -16,7 +16,7 @@
  */
 
 #include <unistd.h>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/foreach.hpp>
 #include <iostream>
 #include <boost/property_tree/ptree.hpp>
@@ -28,6 +28,8 @@
 
 #include "redex.hpp"
 #include "utils/uuid.hpp"
+
+using namespace boost::placeholders;
 
 extern int(*callbackPtr)(char const *name, char const *function, char const *data);
 #ifdef DEBUG
@@ -90,7 +92,9 @@ redex::redex() {
 		logfile.close();
 	} else {
 		// spawn some idle work
-		REDEXioServiceWork.reset( new boost::asio::io_service::work(REDEXioService) );
+		REDEXioServiceWork = std::make_shared<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
+			boost::asio::make_work_guard(REDEXioService)
+		);
 
 		boost::property_tree::ptree configtree;
 		boost::property_tree::json_parser::read_json(CONFIG_FILE_NAME, configtree);
@@ -104,7 +108,7 @@ redex::redex() {
 
 		for (unsigned int i = 0; i < poolsize; i++) {
 			asyncthreadpool.create_thread(
-					boost::bind(static_cast<std::size_t (boost::asio::io_service::*)()>(&boost::asio::io_service::run), &REDEXioService)
+					boost::bind(static_cast<std::size_t (boost::asio::io_context::*)()>(&boost::asio::io_context::run), &REDEXioService)
 			);
 		}
 
@@ -229,7 +233,7 @@ std::string redex::asyncCall(EXT_FUNCTION_INFO funcinfo, ext_arguments &extArgum
 	ext_arguments copyextArgument = extArgument;
 	PROTOCOL_IDENTIFIER_DATATYPE messageIdentifier = PROTOCOL_IDENTIFIER_GENERATOR;
 
-	REDEXioService.post(boost::bind(&redex::asyncCallProcessor, this, funcinfo, extArgument, messageIdentifier));
+		boost::asio::post(REDEXioService, boost::bind(&redex::asyncCallProcessor, this, funcinfo, extArgument, messageIdentifier));
 
 	return "[\"" + std::string(PROTOCOL_MESSAGE_TYPE_ASYNC) + "\",\"" + messageIdentifier + "\"]" ;
 }
@@ -238,7 +242,7 @@ std::string redex::callbackCall(EXT_FUNCTION_INFO funcinfo, ext_arguments &extAr
 	ext_arguments copyextArgument = extArgument;
 	PROTOCOL_IDENTIFIER_DATATYPE messageIdentifier = PROTOCOL_IDENTIFIER_GENERATOR;
 
-	REDEXioService.post(boost::bind(&redex::callbackCallProcessor, this, funcinfo, extArgument, messageIdentifier));
+		boost::asio::post(REDEXioService, boost::bind(&redex::callbackCallProcessor, this, funcinfo, extArgument, messageIdentifier));
 
 	return "[\"" + std::string(PROTOCOL_MESSAGE_TYPE_CALLBACK) + "\",\"" + messageIdentifier + "\"]" ;
 }
@@ -247,7 +251,7 @@ std::string redex::quietCall(EXT_FUNCTION_INFO funcinfo, ext_arguments &extArgum
 	ext_arguments copyextArgument = extArgument;
 	PROTOCOL_IDENTIFIER_DATATYPE messageIdentifier = "";
 
-	REDEXioService.post(boost::bind(&redex::asyncCallProcessor, this, funcinfo, extArgument, messageIdentifier));
+		boost::asio::post(REDEXioService, boost::bind(&redex::asyncCallProcessor, this, funcinfo, extArgument, messageIdentifier));
 
 	return "[\"" + std::string(PROTOCOL_MESSAGE_TYPE_QUIET) + "\",\"\"]" ;
 }
@@ -459,4 +463,3 @@ std::string redex::chkmsg(std::string extFunction, ext_arguments &extArguments) 
 std::string redex::version(std::string extFunction, ext_arguments &extArguments) {
 	return "[\"" + std::string(PROTOCOL_MESSAGE_TYPE_MESSAGE) + "\", " + std::string(DLLVERSIONSTRING) + "]";
 }
-

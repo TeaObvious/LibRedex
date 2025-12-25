@@ -17,8 +17,9 @@
  */
 
 #include <unistd.h>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/foreach.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/algorithm/string.hpp>
@@ -30,6 +31,8 @@
 #include <fstream>
 
 #include "fileio/fileio.hpp"
+
+using namespace boost::placeholders;
 
 fileio::fileio(EXT_FUNCTIONS &extFunctions) {
 	extFunctions.insert(
@@ -133,7 +136,11 @@ std::string fileio::GetInitOrder(std::string &extFunction, ext_arguments &extArg
 
 	if (boost::filesystem::exists(configPath)) {
 		int charpos, linenum;
-		std::string returnString = "[";
+
+		std::string returnString = "[[\"";
+		returnString += configPath.string();
+		returnString += "\"],[";
+
 		std::ifstream infile(configPath.string());
 		std::string line;
 
@@ -176,7 +183,7 @@ std::string fileio::GetInitOrder(std::string &extFunction, ext_arguments &extArg
 			linenum++;
 		}
 
-		returnString += "]";
+		returnString += "]]";
 
 		return "[\"" + std::string(PROTOCOL_MESSAGE_TYPE_MESSAGE) + "\"," + returnString + "]";
 	} else {

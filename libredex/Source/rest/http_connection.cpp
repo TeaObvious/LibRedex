@@ -69,7 +69,7 @@ void http_connection::process_request()
 
 void http_connection::handle_post()
 {
-	std::string url = request_.target().to_string();
+        std::string url(request_.target());
 	std::string data = boost::beast::buffers_to_string(request_.body().data());
 
 	handle_callback(url, data);
@@ -93,7 +93,7 @@ void http_connection::write_response()
 {
 	auto self = shared_from_this();
 
-	response_.set(http::field::content_length, response_.body().size());
+        response_.content_length(response_.body().size());
 
 	http::async_write(
 			socket_,
