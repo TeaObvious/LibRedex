@@ -2,7 +2,7 @@
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 20,
+    "minor": 21,
     "patch": 0
   },
   "configurePresets": [
@@ -20,6 +20,26 @@
       "displayName": "Linux Release",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "mingw32-debug",
+      "displayName": "Linux -> Windows (mingw-w64 i686) Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mingw32-debug",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/mingw-w64-i686.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "mingw32-release",
+      "displayName": "Linux -> Windows (mingw-w64 i686) Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mingw32-release",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/mingw-w64-i686.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
@@ -73,6 +93,14 @@
       "configurePreset": "linux-release"
     },
     {
+      "name": "mingw32-debug",
+      "configurePreset": "mingw32-debug"
+    },
+    {
+      "name": "mingw32-release",
+      "configurePreset": "mingw32-release"
+    },
+    {
       "name": "mingw64-debug",
       "configurePreset": "mingw64-debug"
     },
@@ -87,6 +115,52 @@
     {
       "name": "msys2-mingw64-release",
       "configurePreset": "msys2-mingw64-release"
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "mingw-debug",
+      "displayName": "Linux -> Windows (mingw-w64 i686/x86_64) Debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mingw32-debug"
+        },
+        {
+          "type": "build",
+          "name": "mingw32-debug"
+        },
+        {
+          "type": "configure",
+          "name": "mingw64-debug"
+        },
+        {
+          "type": "build",
+          "name": "mingw64-debug"
+        }
+      ]
+    },
+    {
+      "name": "mingw-release",
+      "displayName": "Linux -> Windows (mingw-w64 i686/x86_64) Release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "mingw32-release"
+        },
+        {
+          "type": "build",
+          "name": "mingw32-release"
+        },
+        {
+          "type": "configure",
+          "name": "mingw64-release"
+        },
+        {
+          "type": "build",
+          "name": "mingw64-release"
+        }
+      ]
     }
   ]
 }
