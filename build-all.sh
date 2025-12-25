@@ -6,16 +6,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ---- Config ---------------------------------------------------------------
 
 DEBIAN_AMD64_IMAGE="${DEBIAN_AMD64_IMAGE:-docker.io/library/debian:bookworm-slim}"
-DEBIAN_I386_IMAGE="${DEBIAN_I386_IMAGE:-docker.io/library/debian:bookworm-slim}"  # force i386 via --arch
+DEBIAN_I386_IMAGE="${DEBIAN_I386_IMAGE:-docker.io/library/debian:bookworm-slim}"  # force i386 via arch/platform
 
 GEN="${GEN:-Ninja}"                 # Ninja or "Unix Makefiles"
 MODE="${MODE:-release}"             # release | debug | both
 
-# MinGW: Script meta target = ALWAYS build 32-bit + 64-bit (via workflow presets)
-PRESET_MINGW32_RELEASE="${PRESET_MINGW32_RELEASE:-mingw32-release-workflow}"
-PRESET_MINGW64_RELEASE="${PRESET_MINGW64_RELEASE:-mingw64-release-workflow}"
-PRESET_MINGW32_DEBUG="${PRESET_MINGW32_DEBUG:-mingw32-debug-workflow}"
-PRESET_MINGW64_DEBUG="${PRESET_MINGW64_DEBUG:-mingw64-debug-workflow}"
+# MinGW: Script meta target = ALWAYS build 32-bit + 64-bit (via presets)
+PRESET_MINGW32_RELEASE="${PRESET_MINGW32_RELEASE:-mingw32-release}"
+PRESET_MINGW64_RELEASE="${PRESET_MINGW64_RELEASE:-mingw64-release}"
+PRESET_MINGW32_DEBUG="${PRESET_MINGW32_DEBUG:-mingw32-debug}"
+PRESET_MINGW64_DEBUG="${PRESET_MINGW64_DEBUG:-mingw64-debug}"
 
 DO_LINUX32="${DO_LINUX32:-1}"
 DO_LINUX64="${DO_LINUX64:-1}"
@@ -49,12 +49,12 @@ Usage: ./build-all.sh [--release|--debug|--both] [--no-linux32] [--no-linux64] [
 Notes:
 - No git commands are executed.
 - Uses your working tree as-is (third_party must already exist).
-- Linux32 uses Debian container forced to i386 via --arch i386 (podman).
-- MinGW always builds BOTH 32-bit and 64-bit via workflow presets:
+- Linux32 uses Debian container forced to i386.
+- Linux64 uses Debian container forced to amd64 (important to avoid accidentally running i386).
+- MinGW always builds BOTH 32-bit and 64-bit via presets:
     $PRESET_MINGW32_RELEASE / $PRESET_MINGW64_RELEASE
     $PRESET_MINGW32_DEBUG   / $PRESET_MINGW64_DEBUG
-- APT package downloads are cached on host via APT_CACHE=1, and we hard-save debs
-  into archives/saved/ to survive any post-install unlink/cleanup behavior.
+- APT package downloads are cached on host via APT_CACHE=1.
 
 Env overrides:
   MODE=release|debug|both
@@ -106,27 +106,37 @@ img_to_dir() {
   echo "$s"
 }
 
+# Build inside container
+# arch: "i386" or "amd64" (required for deterministic results!)
 run_container_build() {
-  local arch="$1"      # "i386" or "" for default
+  local arch="$1"      # "i386" or "amd64"
   local image="$2"
   local bdir="$3"      # e.g. build/32bit-linux/Release
   local cfg="$4"       # Release|Debug
 
   [[ -n "$CTR" ]] || die "podman/docker not found (needed for container builds)"
+  [[ -n "$arch" ]] || die "run_container_build: arch must be set (i386|amd64)"
 
   local arch_args=()
-  local arch_tag="amd64"
-  if [[ -n "$arch" ]]; then
-    # NOTE: podman supports --arch. docker would need --platform.
+  local arch_tag="$arch"
+
+  if [[ "$CTR" == "podman" ]]; then
+    # Podman: --arch i386|amd64
     arch_args+=(--arch "$arch")
-    arch_tag="$arch"
+  else
+    # Docker: --platform linux/386|linux/amd64
+    local plat="linux/amd64"
+    if [[ "$arch" == "i386" ]]; then
+      plat="linux/386"
+    fi
+    arch_args+=(--platform "$plat")
   fi
 
   local uid gid
   uid="$(id -u)"
   gid="$(id -g)"
 
-  log "Container build: ${image} (arch=${arch:-host}) -> ${bdir} (${cfg})"
+  log "Container build: ${image} (arch=${arch}) -> ${bdir} (${cfg})"
 
   local cache_mounts=()
   if [[ "$APT_CACHE" == "1" ]]; then
@@ -163,7 +173,7 @@ run_container_build() {
         rm -f /etc/apt/apt.conf.d/docker-clean
       fi
 
-      # Be explicit (doesn't hurt), but we also add a hard 'saved/' copy below.
+      # Keep downloaded packages
       cat >/etc/apt/apt.conf.d/90keep-downloaded-packages <<'EOF'
 APT::Keep-Downloaded-Packages \"true\";
 Binary::apt::APT::Keep-Downloaded-Packages \"true\";
@@ -197,15 +207,19 @@ EOF
       apt-get -o Acquire::Retries=3 \
         install -y --no-install-recommends \"\${pkgs[@]}\"
 
+      rm -rf '$bdir'
+      mkdir -p '$bdir'
+
       cmake -S . -B '$bdir' -G '$GEN' -DCMAKE_BUILD_TYPE='$cfg'
       cmake --build '$bdir'
     "
 }
 
-run_workflow() {
+run_preset_build() {
   local preset="$1"
-  log "Host workflow build: ${preset}"
-  cmake --workflow --preset "$preset"
+  log "Host preset build: ${preset}"
+  cmake --preset "$preset"
+  cmake --build --preset "$preset"
 }
 
 collect_artifacts() {
@@ -248,7 +262,8 @@ for CFG in $(cmake_cfgs_for_mode); do
   fi
 
   if [[ "$DO_LINUX64" == "1" ]]; then
-    run_container_build "" "$DEBIAN_AMD64_IMAGE" "build/64bit-linux/$CFG" "$CFG"
+    # IMPORTANT: force amd64 explicitly, otherwise we might accidentally reuse a locally cached i386 image tag
+    run_container_build "amd64" "$DEBIAN_AMD64_IMAGE" "build/64bit-linux/$CFG" "$CFG"
   else
     log "Skipping Linux64 ($CFG)."
   fi
@@ -261,11 +276,11 @@ for CFG in $(cmake_cfgs_for_mode); do
     need_cmd x86_64-w64-mingw32-g++
 
     if [[ "$CFG" == "Release" ]]; then
-      run_workflow "$PRESET_MINGW32_RELEASE"
-      run_workflow "$PRESET_MINGW64_RELEASE"
+      run_preset_build "$PRESET_MINGW32_RELEASE"
+      run_preset_build "$PRESET_MINGW64_RELEASE"
     else
-      run_workflow "$PRESET_MINGW32_DEBUG"
-      run_workflow "$PRESET_MINGW64_DEBUG"
+      run_preset_build "$PRESET_MINGW32_DEBUG"
+      run_preset_build "$PRESET_MINGW64_DEBUG"
     fi
   else
     log "Skipping MinGW ($CFG)."

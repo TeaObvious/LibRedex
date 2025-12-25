@@ -116,51 +116,5 @@
       "name": "msys2-mingw64-release",
       "configurePreset": "msys2-mingw64-release"
     }
-  ],
-  "workflowPresets": [
-    {
-      "name": "mingw-debug",
-      "displayName": "Linux -> Windows (mingw-w64 i686/x86_64) Debug",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "mingw32-debug"
-        },
-        {
-          "type": "build",
-          "name": "mingw32-debug"
-        },
-        {
-          "type": "configure",
-          "name": "mingw64-debug"
-        },
-        {
-          "type": "build",
-          "name": "mingw64-debug"
-        }
-      ]
-    },
-    {
-      "name": "mingw-release",
-      "displayName": "Linux -> Windows (mingw-w64 i686/x86_64) Release",
-      "steps": [
-        {
-          "type": "configure",
-          "name": "mingw32-release"
-        },
-        {
-          "type": "build",
-          "name": "mingw32-release"
-        },
-        {
-          "type": "configure",
-          "name": "mingw64-release"
-        },
-        {
-          "type": "build",
-          "name": "mingw64-release"
-        }
-      ]
-    }
   ]
 }

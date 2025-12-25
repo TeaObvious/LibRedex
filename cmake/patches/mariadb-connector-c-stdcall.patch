@@ -1,0 +1,26 @@
+diff --git a/include/mysql.h b/include/mysql.h
+index 5f31d2d1..5b4c2a3f 100644
+--- a/include/mysql.h
++++ b/include/mysql.h
+@@ -517,7 +517,7 @@ typedef struct
+ } MARIADB_X509_INFO;
+ 
+ 
+-struct st_mysql_client_plugin *
++struct st_mysql_client_plugin * STDCALL
+ mysql_load_plugin(struct st_mysql *mysql, const char *name, int type,
+                   int argc, ...);
+ struct st_mysql_client_plugin * STDCALL
+diff --git a/include/mysql/client_plugin.h b/include/mysql/client_plugin.h
+index 4d9f4a14..c78ca141 100644
+--- a/include/mysql/client_plugin.h
++++ b/include/mysql/client_plugin.h
+@@ -196,7 +196,7 @@ typedef struct st_mysql_client_plugin_REMOTEIO
+   @retval
+   a pointer to the loaded plugin, or NULL in case of a failure
+ */
+-struct st_mysql_client_plugin *
++struct st_mysql_client_plugin * STDCALL
+ mysql_load_plugin(struct st_mysql *mysql, const char *name, int type,
+                   int argc, ...);
+ 

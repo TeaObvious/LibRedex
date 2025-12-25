@@ -41,6 +41,25 @@ else()
     set(BOOST_B2_TOOLSET "gcc")
 endif()
 
+set(BOOST_B2_USER_CONFIG_ARG "")
+if(CMAKE_CROSSCOMPILING AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(BOOST_B2_TOOLSET "gcc-mingw")
+    set(BOOST_B2_AR "${CMAKE_AR}")
+    if(NOT BOOST_B2_AR)
+        string(REPLACE "gcc" "ar" BOOST_B2_AR "${CMAKE_C_COMPILER}")
+    endif()
+    set(BOOST_B2_RANLIB "${CMAKE_RANLIB}")
+    if(NOT BOOST_B2_RANLIB)
+        string(REPLACE "gcc" "ranlib" BOOST_B2_RANLIB "${CMAKE_C_COMPILER}")
+    endif()
+    set(BOOST_B2_RC "${CMAKE_RC_COMPILER}")
+    set(BOOST_B2_USER_CONFIG "${CMAKE_BINARY_DIR}/boost-user-config.jam")
+    file(WRITE "${BOOST_B2_USER_CONFIG}"
+        "using gcc : mingw : ${CMAKE_CXX_COMPILER} : <archiver>${BOOST_B2_AR} <ranlib>${BOOST_B2_RANLIB} <rc>${BOOST_B2_RC} ;\n"
+    )
+    set(BOOST_B2_USER_CONFIG_ARG "--user-config=${BOOST_B2_USER_CONFIG}")
+endif()
+
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(BOOST_B2_ADDRESS_MODEL "64")
 else()
@@ -63,7 +82,7 @@ if(NOT WIN32)
     set(BOOST_B2_CXXFLAGS_ARG "cxxflags=-fPIC")
 endif()
 
-if(WIN32 AND NOT MSYS)
+if(CMAKE_HOST_WIN32 AND NOT MSYS)
     set(BOOST_BOOTSTRAP "${BOOST_SOURCE_DIR}/bootstrap.bat")
     set(BOOST_B2_EXECUTABLE "${BOOST_SOURCE_DIR}/b2.exe")
 else()
@@ -101,6 +120,7 @@ ExternalProject_Add(
         "--build-dir=${BOOST_BUILD_DIR}"
         "--stagedir=${BOOST_STAGE_DIR}"
         "toolset=${BOOST_B2_TOOLSET}"
+        ${BOOST_B2_USER_CONFIG_ARG}
         ${BOOST_B2_TARGET_OS_ARG}
         ${BOOST_B2_CXXFLAGS_ARG}
     INSTALL_COMMAND ""
@@ -138,9 +158,53 @@ set(WITH_RTC OFF CACHE BOOL "Disable /RTC" FORCE)
 set(WITH_MYSQLCOMPAT OFF CACHE BOOL "Disable MySQL compatibility symlinks" FORCE)
 set(INSTALL_PLUGINDIR "lib/mariadb/plugin" CACHE PATH "Install dir for MariaDB plugins" FORCE)
 
-add_subdirectory("${THIRD_PARTY_DIR}/mariadb-connector-c" EXCLUDE_FROM_ALL)
+# --- MariaDB connector-c: resync-safe build copy + patch --------------------
+set(MARIADB_SRC_DIR "${THIRD_PARTY_DIR}/mariadb-connector-c")
+set(MARIADB_PATCH_FILES
+  "${CMAKE_SOURCE_DIR}/cmake/patches/mariadb-connector-c-stdcall.patch"
+  "${CMAKE_SOURCE_DIR}/cmake/patches/mariadb-connector-c-version-info.patch"
+)
 
-set(MARIADB_CONNECTOR_SOURCE_DIR "${THIRD_PARTY_DIR}/mariadb-connector-c" CACHE INTERNAL "")
-set(MARIADB_CONNECTOR_BINARY_DIR "${CMAKE_BINARY_DIR}/third_party/mariadb-connector-c" CACHE INTERNAL "")
+# Copy vendored source into the build tree so a resync of third_party doesn't destroy the fix.
+set(MARIADB_WORK_DIR "${CMAKE_BINARY_DIR}/_deps/mariadb-connector-c-src")
+set(MARIADB_BUILD_DIR "${CMAKE_BINARY_DIR}/_deps/mariadb-connector-c-build")
+
+if(NOT EXISTS "${MARIADB_SRC_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR "MariaDB source not found: ${MARIADB_SRC_DIR}")
+endif()
+
+# Always refresh the build copy if the source timestamp changed (cheap + deterministic enough).
+# If you prefer incremental behavior later, we can add a stamp file/hash.
+file(REMOVE_RECURSE "${MARIADB_WORK_DIR}")
+file(COPY "${MARIADB_SRC_DIR}" DESTINATION "${CMAKE_BINARY_DIR}/_deps")
+file(RENAME "${CMAKE_BINARY_DIR}/_deps/mariadb-connector-c" "${MARIADB_WORK_DIR}")
+
+find_program(PATCH_EXECUTABLE patch)
+if(NOT PATCH_EXECUTABLE)
+  message(FATAL_ERROR "patch command not found; required to apply MariaDB patches")
+endif()
+
+foreach(patch_file IN LISTS MARIADB_PATCH_FILES)
+  if(NOT EXISTS "${patch_file}")
+    message(FATAL_ERROR "Required MariaDB patch missing: ${patch_file}")
+  endif()
+
+  # Apply patch to the build copy only (never touch repo third_party).
+  execute_process(
+    COMMAND "${PATCH_EXECUTABLE}" -p1 --forward -i "${patch_file}"
+    WORKING_DIRECTORY "${MARIADB_WORK_DIR}"
+    RESULT_VARIABLE MARIADB_PATCH_RESULT
+  )
+  if(NOT (MARIADB_PATCH_RESULT EQUAL 0 OR MARIADB_PATCH_RESULT EQUAL 1))
+    message(FATAL_ERROR "Failed to apply MariaDB patch ${patch_file} (code=${MARIADB_PATCH_RESULT})")
+  endif()
+endforeach()
+# ---------------------------------------------------------------------------
+
+
+add_subdirectory("${MARIADB_WORK_DIR}" "${MARIADB_BUILD_DIR}" EXCLUDE_FROM_ALL)
+
+set(MARIADB_CONNECTOR_SOURCE_DIR "${MARIADB_WORK_DIR}" CACHE INTERNAL "")
+set(MARIADB_CONNECTOR_BINARY_DIR "${MARIADB_BUILD_DIR}" CACHE INTERNAL "")
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/libredex/Source")
